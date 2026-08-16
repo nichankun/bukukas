@@ -8,14 +8,17 @@ import {
   columnFilteringFeature,
   columnVisibilityFeature,
   rowSortingFeature,
+  rowPaginationFeature,
   createFilteredRowModel,
   createSortedRowModel,
+  createPaginatedRowModel,
   filterFn_includesString,
   sortFn_alphanumeric,
   sortFn_text,
   type ColumnDef,
   type ColumnFiltersState,
   type SortingState,
+  type PaginationState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -29,12 +32,29 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowUpDown, MoreVertical, Pencil, Trash2, Search } from "lucide-react";
+import {
+  ArrowUpDown,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { formatRupiah } from "@/lib/kas-utils";
 
 export interface TransactionRow {
@@ -46,17 +66,22 @@ export interface TransactionRow {
   runningSaldo: number;
 }
 
+// Konfigurasi Fitur TanStack Table v9
 const features = tableFeatures({
   columnFilteringFeature,
   columnVisibilityFeature,
   rowSortingFeature,
+  rowPaginationFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
   filterFns: { includesString: filterFn_includesString },
   sortFns: { alphanumeric: sortFn_alphanumeric, text: sortFn_text },
 });
 
 type DataTableFeatures = typeof features;
+
+const PAGE_SIZE_OPTIONS: number[] = [5, 10, 20, 50];
 
 interface KasDataTableProps {
   data: TransactionRow[];
@@ -75,6 +100,12 @@ export function KasDataTable({
 }: KasDataTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+
+  // State Pagination React (Terkontrol)
+  const [pagination, setPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
 
   const columns = React.useMemo<ColumnDef<DataTableFeatures, TransactionRow>[]>(
     () => [
@@ -198,37 +229,42 @@ export function KasDataTable({
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: setPagination,
     state: {
       sorting,
       columnFilters,
+      pagination,
     },
   });
 
   const netBulan = totalDebet - totalKredit;
+  const pageCount = table.getPageCount() || 1;
+  const currentPage = pagination.pageIndex + 1;
+  const totalRows = table.getFilteredRowModel().rows.length;
 
   return (
-    <div className="space-y-3">
-      {/* Search Input Filter */}
+    <div className="space-y-2.5 sm:space-y-3">
+      {/* Search Input */}
       <div className="flex items-center justify-between gap-2 print:hidden">
         <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Cari keterangan transaksi..."
+            placeholder="Cari keterangan..."
             value={
               (table.getColumn("description")?.getFilterValue() as string) ?? ""
             }
             onChange={(event) =>
               table.getColumn("description")?.setFilterValue(event.target.value)
             }
-            className="pl-8 bg-background h-9 text-xs sm:text-sm"
+            className="pl-8 bg-background h-8 sm:h-9 text-base sm:text-sm"
           />
         </div>
       </div>
 
-      {/* Tabel Tunggal Responsif (Desktop & Mobile) */}
-      <div className="rounded-lg border overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table className="min-w-145 w-full">
+      {/* Tabel Responsif */}
+      <div className="rounded-xl border overflow-hidden">
+        <div className="overflow-x-auto touch-pan-x">
+          <Table className="min-w-140 w-full">
             <TableHeader className="bg-muted/50">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -269,7 +305,7 @@ export function KasDataTable({
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center text-xs sm:text-sm text-muted-foreground"
+                    className="h-20 text-center text-xs sm:text-sm text-muted-foreground"
                   >
                     Tidak ada transaksi yang ditemukan.
                   </TableCell>
@@ -277,7 +313,7 @@ export function KasDataTable({
               )}
             </TableBody>
 
-            {/* Footer Total */}
+            {/* Footer Total Bulan Ini */}
             <TableFooter className="bg-muted/50 font-bold text-xs sm:text-sm">
               <TableRow>
                 <TableCell colSpan={2} className="text-center font-bold px-2 sm:px-4">
@@ -302,6 +338,92 @@ export function KasDataTable({
               </TableRow>
             </TableFooter>
           </Table>
+        </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* KONTROL PAGINATION & PILIHAN JUMLAH BARIS (10, 25, 50, 100)  */}
+      {/* ============================================================ */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 py-2 print:hidden text-xs sm:text-sm text-muted-foreground">
+        {/* Info Total Transaksi */}
+        <div className="text-xs">
+          Total: <span className="font-semibold text-foreground">{totalRows}</span> transaksi
+        </div>
+
+        {/* Kontrol Baris & Navigasi Halaman */}
+        <div className="flex items-center gap-3 sm:gap-6 flex-wrap justify-center">
+          {/* Dropdown 10, 25, 50, 100 */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs shrink-0">Tampilkan:</span>
+            <Select
+              value={`${pagination.pageSize}`}
+              onValueChange={(value) => {
+                table.setPageSize(Number(value));
+              }}
+            >
+              <SelectTrigger className="h-8 w-18.5 bg-background text-xs font-semibold">
+                <SelectValue placeholder={`${pagination.pageSize}`} />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={`${size}`} className="text-xs">
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-xs shrink-0">baris</span>
+          </div>
+
+          {/* Indikator Halaman */}
+          <div className="text-xs font-medium">
+            Hal <span className="font-bold text-foreground">{currentPage}</span> dari{" "}
+            <span className="font-bold text-foreground">{pageCount}</span>
+          </div>
+
+          {/* Tombol Navigasi Halaman */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
+              title="Halaman Pertama"
+            >
+              <ChevronsLeft className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              title="Halaman Sebelumnya"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              title="Halaman Berikutnya"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.setPageIndex(pageCount - 1)}
+              disabled={!table.getCanNextPage()}
+              title="Halaman Terakhir"
+            >
+              <ChevronsRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

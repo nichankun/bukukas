@@ -48,7 +48,6 @@ export function BukuKas({
 }: BukuKasProps) {
   const [isPending, startTransition] = useTransition();
 
-  // State Periode Terpilih
   const [selectedPeriod, setSelectedPeriod] = useState<string>(
     initialPeriods[0]?.periodKey || ""
   );
@@ -116,7 +115,7 @@ export function BukuKas({
     };
   });
 
-  // Handlers
+  // Handlers CRUD
   const handleAddTransaction = (data: {
     day: number;
     description: string;
@@ -124,7 +123,7 @@ export function BukuKas({
     amount: number;
   }) => {
     if (!selectedPeriod) {
-      alert("Silakan pilih atau buat periode terlebih dahulu!");
+      alert("Silakan buat periode terlebih dahulu!");
       return;
     }
     startTransition(async () => {
@@ -180,8 +179,8 @@ export function BukuKas({
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 bg-card text-card-foreground rounded-xl shadow-sm border">
-      {/* 1. Header */}
+    <div className="max-w-5xl mx-auto p-3 sm:p-6 bg-card text-card-foreground rounded-xl sm:rounded-2xl shadow-sm border">
+      {/* 1. Header & Tombol Export/Cetak */}
       <KasHeader
         onExportExcel={() => {
           if (!selectedPeriod) {
@@ -197,7 +196,7 @@ export function BukuKas({
         onPrint={() => window.print()}
       />
 
-      {/* 2. Filter Periode & Saldo Awal */}
+      {/* 2. Filter Periode Terkelompok & Saldo Awal Mandiri */}
       <KasPeriodFilter
         periods={initialPeriods.map((p) => p.periodKey)}
         selectedPeriod={selectedPeriod}
@@ -209,23 +208,23 @@ export function BukuKas({
         onPeriodBalanceBlur={handlePeriodBalanceBlur}
       />
 
-      {/* 3. Kondisi Jika Belum Ada Periode Sama Sekali */}
+      {/* 3. Empty State jika belum ada periode */}
       {initialPeriods.length === 0 ? (
-        <div className="text-center py-12 px-4 border rounded-xl bg-muted/20 my-6">
-          <CalendarPlus className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-          <h3 className="text-lg font-bold text-foreground mb-1">
+        <div className="text-center py-10 sm:py-16 px-4 border rounded-xl bg-muted/20 my-4 sm:my-6">
+          <CalendarPlus className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-3" />
+          <h3 className="text-base sm:text-lg font-bold text-foreground mb-1">
             Belum Ada Periode Pembukuan
           </h3>
-          <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">
-            Buku kas Anda saat ini masih kosong. Silakan buat periode bulan pertama untuk mulai mencatat kas.
+          <p className="text-xs sm:text-sm text-muted-foreground max-w-sm mx-auto mb-4">
+            Buku kas Anda saat ini masih kosong. Silakan buat periode bulan pertama untuk mulai mencatat transaksi.
           </p>
-          <Button onClick={() => setIsPeriodOpen(true)}>
+          <Button onClick={() => setIsPeriodOpen(true)} size="sm">
             <CalendarPlus className="w-4 h-4 mr-2" /> Buat Periode Pertama
           </Button>
         </div>
       ) : (
         <>
-          {/* 4. Kartu Ringkasan */}
+          {/* 4. Kartu Ringkasan Keuangan (Grid 2x2 di Mobile) */}
           <KasSummaryCards summary={currentSummary} />
 
           {/* 5. Form Tambah Transaksi */}
@@ -234,7 +233,7 @@ export function BukuKas({
             onSubmit={handleAddTransaction}
           />
 
-          {/* 6. Data Table Transaksi */}
+          {/* 6. Data Table Transaksi (Smooth Horizontal Scroll di Mobile) */}
           <KasDataTable
             data={tableData}
             totalDebet={currentSummary.totalDebet}
