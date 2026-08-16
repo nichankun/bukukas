@@ -8,7 +8,7 @@ import { SignJWT } from "jose";
 const COOKIE_NAME = "bukukas_session";
 
 function getSecretKey() {
-  const secret = process.env.AUTH_SECRET || "default_fallback_secret_key_32bytes";
+  const secret = process.env.AUTH_SECRET ;
   return new TextEncoder().encode(secret);
 }
 
@@ -21,8 +21,8 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   const username = formData.get("username") as string;
   const password = formData.get("password") as string;
 
-  const validUsername = process.env.ADMIN_USERNAME || "admin";
-  const validPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const validUsername = process.env.ADMIN_USERNAME ;
+  const validPassword = process.env.ADMIN_PASSWORD ;
 
   if (!username || !password) {
     return { success: false, error: "Username dan password wajib diisi!" };
