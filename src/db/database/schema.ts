@@ -3,18 +3,11 @@ import { pgTable, serial, varchar, integer, numeric, timestamp, text, pgEnum } f
 
 export const transactionTypeEnum = pgEnum("transaction_type", ["debet", "kredit"]);
 
-// Pengaturan global seperti Saldo Awal Pertama
-export const settingsTable = pgTable("settings", {
-  id: serial("id").primaryKey(),
-  key: varchar("key", { length: 50 }).notNull().unique(),
-  value: text("value").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Daftar periode bulan (misal: "2026-01", "2026-02")
+// Daftar periode bulan dengan saldo awal mandiri per periode
 export const periodsTable = pgTable("periods", {
   id: serial("id").primaryKey(),
   periodKey: varchar("period_key", { length: 7 }).notNull().unique(), // Format: YYYY-MM
+  initialBalance: numeric("initial_balance", { precision: 15, scale: 2 }).default("0").notNull(), // Saldo awal khusus periode ini
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -30,6 +23,6 @@ export const transactionsTable = pgTable("transactions", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export type Period = typeof periodsTable.$inferSelect;
 export type Transaction = typeof transactionsTable.$inferSelect;
 export type NewTransaction = typeof transactionsTable.$inferInsert;
-export type Period = typeof periodsTable.$inferSelect;

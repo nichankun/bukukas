@@ -2,48 +2,28 @@
 "use server";
 
 import { db } from "@/db";
-import { periodsTable, transactionsTable, settingsTable } from "@/db/database/schema";
+import { periodsTable, transactionsTable } from "@/db/database/schema";
 import { eq, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getKasAppState() {
-  // 1. Ambil saldo awal master menggunakan select standar
-  const [setting] = await db
-    .select()
-    .from(settingsTable)
-    .where(eq(settingsTable.key, "initial_master_balance"))
-    .limit(1);
-
-  const initialMasterBalance = setting ? parseFloat(setting.value) : 94913750;
-
-  // 2. Ambil semua periode
-  let periods = await db
+  // 1. Ambil semua periode (Murni dari database tanpa auto-seed)
+  const periodsData = await db
     .select()
     .from(periodsTable)
     .orderBy(asc(periodsTable.periodKey));
 
-  // Seed default periode jika database masih kosong
-  if (periods.length === 0) {
-    await db.insert(periodsTable).values([
-      { periodKey: "2026-01" },
-      { periodKey: "2026-02" },
-    ]);
-
-    periods = await db
-      .select()
-      .from(periodsTable)
-      .orderBy(asc(periodsTable.periodKey));
-  }
-
-  // 3. Ambil seluruh transaksi
+  // 2. Ambil seluruh transaksi
   const allTransactions = await db
     .select()
     .from(transactionsTable)
     .orderBy(asc(transactionsTable.day));
 
   return {
-    initialMasterBalance,
-    periods: periods.map((p) => p.periodKey),
+    periods: periodsData.map((p) => ({
+      periodKey: p.periodKey,
+      initialBalance: parseFloat(p.initialBalance) || 0,
+    })),
     transactions: allTransactions.map((t) => ({
       ...t,
       amount: parseFloat(t.amount) || 0,
@@ -51,33 +31,45 @@ export async function getKasAppState() {
   };
 }
 
-export async function updateInitialMasterBalance(amount: number) {
-  await db
-    .insert(settingsTable)
-    .values({
-      key: "initial_master_balance",
-      value: amount.toString(),
-    })
-    .onConflictDoUpdate({
-      target: settingsTable.key,
-      set: {
-        value: amount.toString(),
-        updatedAt: new Date(),
-      },
-    });
-
-  revalidatePath("/");
-}
-
-export async function createPeriod(periodKey: string) {
+// Tambah Periode Baru
+export async function createPeriod(periodKey: string, initialBalance: number = 0) {
   await db
     .insert(periodsTable)
-    .values({ periodKey })
+    .values({
+      periodKey,
+      initialBalance: initialBalance.toString(),
+    })
     .onConflictDoNothing();
 
   revalidatePath("/");
 }
 
+// Hapus Periode beserta seluruh transaksi di dalamnya
+export async function deletePeriodAction(periodKey: string) {
+  // 1. Hapus transaksi yang berada di periode tersebut
+  await db
+    .delete(transactionsTable)
+    .where(eq(transactionsTable.periodKey, periodKey));
+
+  // 2. Hapus periode dari database
+  await db
+    .delete(periodsTable)
+    .where(eq(periodsTable.periodKey, periodKey));
+
+  revalidatePath("/");
+}
+
+// Update Saldo Awal per Periode
+export async function updatePeriodInitialBalance(periodKey: string, amount: number) {
+  await db
+    .update(periodsTable)
+    .set({ initialBalance: amount.toString() })
+    .where(eq(periodsTable.periodKey, periodKey));
+
+  revalidatePath("/");
+}
+
+// Tambah Transaksi
 export async function addTransactionAction(data: {
   periodKey: string;
   day: number;
@@ -96,6 +88,7 @@ export async function addTransactionAction(data: {
   revalidatePath("/");
 }
 
+// Update Transaksi
 export async function updateTransactionAction(
   id: number,
   data: {
@@ -119,6 +112,7 @@ export async function updateTransactionAction(
   revalidatePath("/");
 }
 
+// Hapus Transaksi
 export async function deleteTransactionAction(id: number) {
   await db
     .delete(transactionsTable)

@@ -25,7 +25,9 @@ export function DialogAddPeriod({
   onAddPeriod,
   isPending,
 }: DialogAddPeriodProps) {
-  const [newPeriodInput, setNewPeriodInput] = useState("2026-03");
+  // Ambil tahun-bulan saat ini (format YYYY-MM)
+  const currentMonthYear = new Date().toISOString().slice(0, 7);
+  const [newPeriodInput, setNewPeriodInput] = useState(currentMonthYear);
 
   const handleAdd = () => {
     if (newPeriodInput) {
