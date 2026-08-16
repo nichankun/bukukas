@@ -1,51 +1,84 @@
 // src/app/actions/auth.ts
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { SignJWT } from "jose";
-
-const COOKIE_NAME = "bukukas_session";
-
-function getSecretKey() {
-  const secret = process.env.AUTH_SECRET ;
-  return new TextEncoder().encode(secret);
-}
+import {
+  createSessionToken,
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+} from "@/lib/session";
+import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
 
 export interface LoginResult {
   success: boolean;
   error?: string;
 }
 
+// Perbandingan string waktu-konstan sederhana untuk mengurangi risiko
+// timing attack pada perbandingan username/password.
+function timingSafeEqual(a: string, b: string): boolean {
+  // Bandingkan terhadap panjang maksimum keduanya supaya waktu eksekusi
+  // tidak membocorkan info panjang string yang benar lewat early return.
+  const maxLength = Math.max(a.length, b.length);
+  let mismatch = a.length === b.length ? 0 : 1;
+
+  for (let i = 0; i < maxLength; i++) {
+    const charA = i < a.length ? a.charCodeAt(i) : 0;
+    const charB = i < b.length ? b.charCodeAt(i) : 0;
+    mismatch |= charA ^ charB;
+  }
+
+  return mismatch === 0;
+}
+
 export async function loginAction(formData: FormData): Promise<LoginResult> {
-  const username = formData.get("username") as string;
-  const password = formData.get("password") as string;
+  const headerList = await headers();
+  const identifier =
+    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
-  const validUsername = process.env.ADMIN_USERNAME ;
-  const validPassword = process.env.ADMIN_PASSWORD ;
+  const rateLimit = checkRateLimit(identifier);
+  if (!rateLimit.allowed) {
+    return {
+      success: false,
+      error: `Terlalu banyak percobaan login. Coba lagi dalam ${rateLimit.retryAfterSeconds} detik.`,
+    };
+  }
 
-  if (!username || !password) {
+  const username = formData.get("username");
+  const password = formData.get("password");
+
+  if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
     return { success: false, error: "Username dan password wajib diisi!" };
   }
 
-  if (username !== validUsername || password !== validPassword) {
+  const validUsername = process.env.ADMIN_USERNAME;
+  const validPassword = process.env.ADMIN_PASSWORD;
+
+  if (!validUsername || !validPassword) {
+    // Kegagalan konfigurasi server tidak boleh membocorkan detail ke user.
+    console.error("ADMIN_USERNAME / ADMIN_PASSWORD belum di-set di environment.");
+    return { success: false, error: "Konfigurasi server belum lengkap. Hubungi admin." };
+  }
+
+  const usernameOk = timingSafeEqual(username, validUsername);
+  const passwordOk = timingSafeEqual(password, validPassword);
+
+  if (!usernameOk || !passwordOk) {
     return { success: false, error: "Username atau password salah!" };
   }
 
-  // Buat Token JWT yang di-sign secara kriptografis dengan AUTH_SECRET
-  const token = await new SignJWT({ user: username })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d") // Token otomatis hangus setelah 7 hari
-    .sign(getSecretKey());
+  resetRateLimit(identifier);
+
+  const token = await createSessionToken({ user: username });
 
   const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, token, {
+  cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 7 hari
+    maxAge: SESSION_MAX_AGE_SECONDS,
   });
 
   return { success: true };
@@ -53,6 +86,6 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
 
 export async function logoutAction() {
   const cookieStore = await cookies();
-  cookieStore.delete(COOKIE_NAME);
+  cookieStore.delete(SESSION_COOKIE_NAME);
   redirect("/login");
 }

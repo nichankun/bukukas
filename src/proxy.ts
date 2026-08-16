@@ -1,29 +1,20 @@
 // src/proxy.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
-
-const COOKIE_NAME = "bukukas_session";
-
-function getSecretKey() {
-  const secret = process.env.AUTH_SECRET || "default_fallback_secret_key_32bytes";
-  return new TextEncoder().encode(secret);
-}
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export default async function proxy(request: NextRequest) {
-  const token = request.cookies.get(COOKIE_NAME)?.value;
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const isLoginPage = request.nextUrl.pathname.startsWith("/login");
 
+  // Verifikasi keaslian tanda tangan token JWT.
+  // Jika AUTH_SECRET tidak di-set, verifySessionToken akan throw —
+  // proxy akan gagal loud (500) alih-alih diam-diam menganggap semua
+  // orang belum login (atau lebih parah, menerima token palsu).
   let isAuthenticated = false;
-
-  // Verifikasi keaslian tanda tangan token JWT
   if (token) {
-    try {
-      await jwtVerify(token, getSecretKey());
-      isAuthenticated = true;
-    } catch {
-      isAuthenticated = false;
-    }
+    const session = await verifySessionToken(token);
+    isAuthenticated = session !== null;
   }
 
   // Jika belum login & mencoba buka dashboard -> redirect ke /login

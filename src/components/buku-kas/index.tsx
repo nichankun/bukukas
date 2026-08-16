@@ -1,7 +1,7 @@
 // src/components/buku-kas/index.tsx
 "use client";
 
-import React, { useState, useTransition, useEffect } from "react";
+import React, { useState, useTransition } from "react";
 import { formatNumberInput, parseFormattedNumber, formatMonthName } from "@/lib/kas-utils";
 import { exportKasToExcel } from "@/lib/export-excel";
 import {
@@ -49,31 +49,35 @@ export function BukuKas({
 }: BukuKasProps) {
   const [isPending, startTransition] = useTransition();
 
-  // State Periode Terpilih
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(
-    initialPeriods[0]?.periodKey || ""
-  );
+  // State Periode Terpilih (override manual oleh user via dropdown)
+  const [selectedPeriodOverride, setSelectedPeriodOverride] = useState<string | null>(null);
 
-  // Jika periode terpilih terhapus, otomatis pindah ke periode pertama yang tersedia
-  useEffect(() => {
-    if (!initialPeriods.some((p) => p.periodKey === selectedPeriod)) {
-      setSelectedPeriod(initialPeriods[0]?.periodKey || "");
-    }
-  }, [initialPeriods, selectedPeriod]);
+  // Periode aktif = override user, jika masih ada di daftar; jika tidak
+  // (mis. baru dihapus), otomatis jatuh ke periode pertama yang tersedia.
+  // Dihitung langsung saat render — tidak perlu effect untuk "reset".
+  const selectedPeriod =
+    selectedPeriodOverride && initialPeriods.some((p) => p.periodKey === selectedPeriodOverride)
+      ? selectedPeriodOverride
+      : initialPeriods[0]?.periodKey || "";
+
+  const setSelectedPeriod = (period: string) => setSelectedPeriodOverride(period);
 
   // Ambil saldo awal periode aktif
   const activePeriodObj = initialPeriods.find((p) => p.periodKey === selectedPeriod);
   const currentInitialBal = activePeriodObj ? activePeriodObj.initialBalance : 0;
 
+  // Input saldo awal: state lokal (supaya bisa diketik bebas sebelum blur),
+  // di-reset otomatis saat periode aktif berganti. Menggunakan pola resmi
+  // React "Adjusting state when a prop changes" — setState kondisional saat
+  // render, BUKAN di dalam useEffect — supaya tidak memicu render tambahan.
+  const [prevSelectedPeriod, setPrevSelectedPeriod] = useState(selectedPeriod);
   const [periodBalanceStr, setPeriodBalanceStr] = useState<string>(
     formatNumberInput(currentInitialBal)
   );
-
-  // Sinkronkan input saldo awal saat ganti periode
-  useEffect(() => {
-    const pObj = initialPeriods.find((p) => p.periodKey === selectedPeriod);
-    setPeriodBalanceStr(formatNumberInput(pObj ? pObj.initialBalance : 0));
-  }, [selectedPeriod, initialPeriods]);
+  if (selectedPeriod !== prevSelectedPeriod) {
+    setPrevSelectedPeriod(selectedPeriod);
+    setPeriodBalanceStr(formatNumberInput(currentInitialBal));
+  }
 
   const [isPeriodOpen, setIsPeriodOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -118,19 +122,25 @@ export function BukuKas({
     saldoAkhir: saldoAkhirBulan,
   };
 
-  // Hitung running saldo baris transaksi
-  let currentRunning = saldoAwalBulan;
-  const tableData: TransactionRow[] = currentTransactions.map((tx) => {
-    currentRunning += tx.type === "debet" ? tx.amount : -tx.amount;
-    return {
-      id: tx.id,
-      day: tx.day,
-      description: tx.description,
-      type: tx.type,
-      amount: tx.amount,
-      runningSaldo: currentRunning,
-    };
-  });
+  // Hitung running saldo baris transaksi. Menggunakan reduce dengan
+  // accumulator baru (bukan reassignment variabel dari outer scope)
+  // supaya kompatibel dengan React Compiler.
+  const tableData: TransactionRow[] = currentTransactions.reduce<TransactionRow[]>(
+    (rows, tx) => {
+      const prevSaldo = rows.length > 0 ? rows[rows.length - 1].runningSaldo : saldoAwalBulan;
+      const runningSaldo = tx.type === "debet" ? prevSaldo + tx.amount : prevSaldo - tx.amount;
+      rows.push({
+        id: tx.id,
+        day: tx.day,
+        description: tx.description,
+        type: tx.type,
+        amount: tx.amount,
+        runningSaldo,
+      });
+      return rows;
+    },
+    []
+  );
 
   // Handlers CRUD
   const handleAddTransaction = (data: {
