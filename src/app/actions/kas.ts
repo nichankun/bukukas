@@ -7,6 +7,7 @@ import { eq, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSession } from "@/lib/require-session";
+import { getDaysInMonth } from "@/lib/kas-utils";
 
 // Angka desimal, disimpan sebagai string oleh Drizzle (kolom numeric).
 const amountSchema = z
@@ -25,6 +26,18 @@ const transactionInputSchema = z.object({
   type: z.enum(["debet", "kredit"]),
   amount: amountSchema,
 });
+
+// Validasi tambahan: `day` (1-31) harus benar-benar ada di bulan/tahun
+// periode tersebut. Contoh yang harus ditolak: 31 Februari, 31 April,
+// 30 Februari, dst. Dipanggil setelah transactionInputSchema.parse().
+function assertValidDayForPeriod(periodKey: string, day: number) {
+  const maxDay = getDaysInMonth(periodKey);
+  if (day > maxDay) {
+    throw new Error(
+      `Tanggal ${day} tidak valid untuk periode ${periodKey} (bulan ini hanya punya ${maxDay} hari).`
+    );
+  }
+}
 
 export async function getKasAppState() {
   await requireSession();
@@ -111,6 +124,7 @@ export async function addTransactionAction(data: {
 
   const parsedKey = periodKeySchema.parse(data.periodKey);
   const parsed = transactionInputSchema.parse(data);
+  assertValidDayForPeriod(parsedKey, parsed.day);
 
   await db.insert(transactionsTable).values({
     periodKey: parsedKey,
@@ -137,6 +151,21 @@ export async function updateTransactionAction(
 
   const parsedId = z.number().int().positive().parse(id);
   const parsed = transactionInputSchema.parse(data);
+
+  // periodKey tidak dikirim dari client saat edit (transaksi tidak pindah
+  // periode), jadi ambil dulu dari DB untuk memvalidasi `day` terhadap
+  // bulan aslinya.
+  const existing = await db
+    .select({ periodKey: transactionsTable.periodKey })
+    .from(transactionsTable)
+    .where(eq(transactionsTable.id, parsedId))
+    .limit(1);
+
+  if (existing.length === 0) {
+    throw new Error("Transaksi tidak ditemukan.");
+  }
+
+  assertValidDayForPeriod(existing[0].periodKey, parsed.day);
 
   await db
     .update(transactionsTable)

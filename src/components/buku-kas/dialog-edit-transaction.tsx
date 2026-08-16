@@ -18,9 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatNumberInput, parseFormattedNumber } from "@/lib/kas-utils";
+import { KasDayPicker } from "./kas-day-picker";
 
 export interface EditItemState {
   id: number;
+  periodKey: string;
   day: string;
   description: string;
   type: "debet" | "kredit";
@@ -50,8 +52,11 @@ export function DialogEditTransaction({
     const day = parseInt(item.day, 10);
     const amount = parseFormattedNumber(item.amount);
 
-    if (isNaN(day) || day < 1 || day > 31) {
-      alert("Masukkan tanggal (hari) antara 1 sampai 31!");
+    // Tidak perlu lagi validasi range 1-31 manual: KasDayPicker hanya
+    // menampilkan tanggal yang benar-benar ada di bulan periode transaksi
+    // ini, jadi kalau item.day sudah terisi, nilainya pasti valid.
+    if (isNaN(day)) {
+      alert("Silakan pilih tanggal transaksi!");
       return;
     }
     if (amount <= 0) {
@@ -76,14 +81,12 @@ export function DialogEditTransaction({
         <div className="space-y-3 py-2">
           <div>
             <label className="text-xs font-semibold text-muted-foreground">
-              Tanggal (Hari 1-31)
+              Tanggal
             </label>
-            <Input
-              type="number"
-              min={1}
-              max={31}
-              value={item.day}
-              onChange={(e) => setItem({ ...item, day: e.target.value })}
+            <KasDayPicker
+              periodKey={item.periodKey}
+              value={item.day ? parseInt(item.day, 10) : null}
+              onChange={(day) => setItem({ ...item, day: day.toString() })}
             />
           </div>
           <div>

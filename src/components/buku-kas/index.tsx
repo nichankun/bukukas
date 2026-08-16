@@ -271,6 +271,7 @@ export function BukuKas({
 
           {/* 5. Form Tambah Transaksi */}
           <KasTransactionForm
+            periodKey={selectedPeriod}
             isPending={isPending}
             onSubmit={handleAddTransaction}
           />
@@ -283,6 +284,7 @@ export function BukuKas({
             onEdit={(row) => {
               setEditItem({
                 id: row.id,
+                periodKey: selectedPeriod,
                 day: row.day.toString(),
                 description: row.description,
                 type: row.type,

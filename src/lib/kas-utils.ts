@@ -11,6 +11,17 @@ export function formatMonthName(periodKey: string): string {
   return `${NAMA_BULAN[monthIdx] || month} ${year}`;
 }
 
+// Jumlah hari valid untuk periode "YYYY-MM" tertentu (memperhitungkan
+// tahun kabisat untuk Februari). Dipakai untuk memvalidasi `day` transaksi
+// supaya tanggal seperti 31 Februari atau 31 April tidak bisa tersimpan.
+export function getDaysInMonth(periodKey: string): number {
+  const [yearStr, monthStr] = periodKey.split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10); // 1-12
+  // Tanggal ke-0 dari bulan berikutnya = tanggal terakhir bulan ini.
+  return new Date(year, month, 0).getDate();
+}
+
 export function formatRupiah(number: number): string {
   if (number === 0 || isNaN(number)) return "Rp0";
   const isNegative = number < 0;

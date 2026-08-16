@@ -13,8 +13,13 @@ import {
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { formatNumberInput, parseFormattedNumber } from "@/lib/kas-utils";
+import { KasDayPicker } from "./kas-day-picker";
 
 interface KasTransactionFormProps {
+  // Periode aktif "YYYY-MM" — dipakai KasDayPicker untuk menentukan
+  // bulan/tahun kalender & jumlah tanggal yang valid (mis. Februari
+  // otomatis cuma sampai 28/29).
+  periodKey: string;
   isPending: boolean;
   onSubmit: (data: {
     day: number;
@@ -25,21 +30,24 @@ interface KasTransactionFormProps {
 }
 
 export function KasTransactionForm({
+  periodKey,
   isPending,
   onSubmit,
 }: KasTransactionFormProps) {
-  const [tglHari, setTglHari] = useState("");
+  const [tglHari, setTglHari] = useState<number | null>(null);
   const [keterangan, setKeterangan] = useState("");
   const [jenis, setJenis] = useState<"debet" | "kredit">("debet");
   const [jumlah, setJumlah] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const day = parseInt(tglHari, 10);
     const amount = parseFormattedNumber(jumlah);
 
-    if (isNaN(day) || day < 1 || day > 31) {
-      alert("Masukkan tanggal (hari) antara 1 sampai 31!");
+    // Tidak perlu lagi validasi range 1-31 manual: KasDayPicker hanya
+    // menampilkan tanggal yang benar-benar ada di bulan periode aktif,
+    // jadi kalau tglHari terisi, nilainya pasti valid.
+    if (tglHari === null) {
+      alert("Silakan pilih tanggal transaksi!");
       return;
     }
     if (amount <= 0) {
@@ -47,8 +55,8 @@ export function KasTransactionForm({
       return;
     }
 
-    onSubmit({ day, description: keterangan, type: jenis, amount });
-    setTglHari("");
+    onSubmit({ day: tglHari, description: keterangan, type: jenis, amount });
+    setTglHari(null);
     setKeterangan("");
     setJumlah("");
   };
@@ -60,17 +68,12 @@ export function KasTransactionForm({
     >
       <div>
         <label className="text-[11px] sm:text-xs font-semibold text-muted-foreground block mb-1">
-          Tanggal (1-31)
+          Tanggal
         </label>
-        <Input
-          type="number"
-          min={1}
-          max={31}
-          placeholder="Misal: 15"
+        <KasDayPicker
+          periodKey={periodKey}
           value={tglHari}
-          onChange={(e) => setTglHari(e.target.value)}
-          required
-          className="bg-background h-9 text-base sm:text-sm"
+          onChange={setTglHari}
         />
       </div>
 

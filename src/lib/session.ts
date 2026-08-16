@@ -38,11 +38,28 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
 }
 
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
+  // PENTING: getSecretKey() dipanggil DI LUAR try/catch di bawah.
+  //
+  // Kalau dipanggil di dalam try, error "AUTH_SECRET belum di-set" akan
+  // ikut ke-catch bersama error verifikasi JWT biasa (token invalid/
+  // kedaluwarsa/dipalsukan) dan sama-sama menghasilkan `return null` —
+  // artinya kegagalan konfigurasi server malah diam-diam diperlakukan
+  // sama seperti "user belum login", bertentangan dengan niat di
+  // getSecretKey() yang seharusnya gagal *loud*, bukan silent.
+  //
+  // Dengan getSecretKey() di luar try, error konfigurasi akan langsung
+  // throw ke pemanggil (proxy.ts / requireSession()), sesuai desain awal.
+  const secretKey = getSecretKey();
+
   try {
-    const { payload } = await jwtVerify(token, getSecretKey());
+    const { payload } = await jwtVerify(token, secretKey);
     if (typeof payload.user !== "string") return null;
     return { user: payload.user };
   } catch {
+    // Di titik ini, secretKey sudah pasti valid — jadi error di sini
+    // murni soal token itu sendiri (invalid/kedaluwarsa/dipalsukan),
+    // bukan soal konfigurasi server. Aman untuk diperlakukan sebagai
+    // "belum login".
     return null;
   }
 }

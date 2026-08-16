@@ -32,10 +32,39 @@ function timingSafeEqual(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
+// Menentukan identifier untuk rate limiting.
+//
+// PENTING: header `x-forwarded-for` bisa dipalsukan bebas oleh client
+// (mis. `fetch(url, { headers: { "x-forwarded-for": "1.2.3.4" } })`)
+// kecuali aplikasi berjalan di belakang reverse proxy tepercaya yang
+// men-strip/overwrite header ini sebelum request sampai ke Next.js
+// (mis. Vercel, Nginx dengan konfigurasi yang benar, Cloudflare, dst).
+//
+// Kalau kita asal percaya header itu tanpa syarat, penyerang bisa
+// mem-bypass rate limit cukup dengan mengganti-ganti nilai header di
+// tiap request — rate limit jadi tidak berguna sama sekali.
+//
+// Solusi: hanya percaya `x-forwarded-for` kalau operator secara eksplisit
+// menyatakan (lewat env var `TRUST_PROXY_HEADERS=true`) bahwa deployment
+// ini memang di belakang proxy tepercaya. Kalau tidak di-set, fallback ke
+// satu bucket global — ini tidak membeda-bedakan IP, tapi tidak bisa
+// di-bypass, jadi tetap membatasi total percobaan brute force ke aplikasi.
+function getRateLimitIdentifier(headerList: Headers): string {
+  const trustProxyHeaders = process.env.TRUST_PROXY_HEADERS === "true";
+
+  if (trustProxyHeaders) {
+    const forwardedFor = headerList.get("x-forwarded-for");
+    const ip = forwardedFor?.split(",")[0]?.trim();
+    if (ip) return ip;
+  }
+
+  // Default aman: satu bucket global untuk semua percobaan login.
+  return "global";
+}
+
 export async function loginAction(formData: FormData): Promise<LoginResult> {
   const headerList = await headers();
-  const identifier =
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const identifier = getRateLimitIdentifier(headerList);
 
   const rateLimit = checkRateLimit(identifier);
   if (!rateLimit.allowed) {
