@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useTransition, useEffect } from "react";
-import { formatNumberInput, parseFormattedNumber } from "@/lib/kas-utils";
+import { formatNumberInput, parseFormattedNumber, formatMonthName } from "@/lib/kas-utils";
 import { exportKasToExcel } from "@/lib/export-excel";
 import {
   addTransactionAction,
@@ -20,6 +20,7 @@ import { KasTransactionForm } from "./kas-transaction-form";
 import { KasDataTable, TransactionRow } from "./kas-data-table";
 import { DialogAddPeriod } from "./dialog-add-period";
 import { DialogEditTransaction, EditItemState } from "./dialog-edit-transaction";
+import { DialogConfirmDelete } from "./dialog-confirm-delete";
 import { Button } from "@/components/ui/button";
 import { CalendarPlus } from "lucide-react";
 
@@ -48,6 +49,7 @@ export function BukuKas({
 }: BukuKasProps) {
   const [isPending, startTransition] = useTransition();
 
+  // State Periode Terpilih
   const [selectedPeriod, setSelectedPeriod] = useState<string>(
     initialPeriods[0]?.periodKey || ""
   );
@@ -76,6 +78,21 @@ export function BukuKas({
   const [isPeriodOpen, setIsPeriodOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItem, setEditItem] = useState<EditItemState | null>(null);
+
+  // State Modal Konfirmasi Hapus (shadcn/ui Alert Dialog)
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    type: "period" | "transaction";
+    id?: number;
+    periodKey?: string;
+    title: string;
+    description: string;
+  }>({
+    open: false,
+    type: "period",
+    title: "",
+    description: "",
+  });
 
   // Transaksi di periode terpilih
   const currentTransactions = initialTransactions
@@ -142,10 +159,37 @@ export function BukuKas({
     });
   };
 
-  const handleDeleteTransaction = (id: number) => {
-    if (confirm("Apakah Anda yakin ingin menghapus transaksi ini?")) {
+  // Trigger Modal Hapus Transaksi (shadcn)
+  const promptDeleteTransaction = (id: number) => {
+    setDeleteDialog({
+      open: true,
+      type: "transaction",
+      id,
+      title: "Hapus Transaksi?",
+      description: "Apakah Anda yakin ingin menghapus transaksi ini? Data yang dihapus tidak dapat dikembalikan.",
+    });
+  };
+
+  // Trigger Modal Hapus Periode (shadcn)
+  const promptDeletePeriod = (periodKeyToDelete: string) => {
+    setDeleteDialog({
+      open: true,
+      type: "period",
+      periodKey: periodKeyToDelete,
+      title: "Hapus Periode Pembukuan?",
+      description: `PERINGATAN: Menghapus periode "${formatMonthName(periodKeyToDelete)}" akan menghapus seluruh data transaksi di bulan tersebut. Lanjutkan?`,
+    });
+  };
+
+  // Eksekusi Hapus setelah konfirmasi di modal
+  const handleConfirmDelete = () => {
+    if (deleteDialog.type === "period" && deleteDialog.periodKey) {
       startTransition(async () => {
-        await deleteTransactionAction(id);
+        await deletePeriodAction(deleteDialog.periodKey!);
+      });
+    } else if (deleteDialog.type === "transaction" && deleteDialog.id) {
+      startTransition(async () => {
+        await deleteTransactionAction(deleteDialog.id!);
       });
     }
   };
@@ -156,18 +200,6 @@ export function BukuKas({
       setSelectedPeriod(newPeriod);
       setIsPeriodOpen(false);
     });
-  };
-
-  const handleDeletePeriod = (periodKeyToDelete: string) => {
-    if (
-      confirm(
-        `PERINGATAN: Menghapus periode "${periodKeyToDelete}" akan menghapus seluruh data transaksi di bulan tersebut. Lanjutkan?`
-      )
-    ) {
-      startTransition(async () => {
-        await deletePeriodAction(periodKeyToDelete);
-      });
-    }
   };
 
   const handlePeriodBalanceBlur = () => {
@@ -202,7 +234,7 @@ export function BukuKas({
         selectedPeriod={selectedPeriod}
         onPeriodChange={setSelectedPeriod}
         onOpenAddPeriod={() => setIsPeriodOpen(true)}
-        onDeletePeriod={handleDeletePeriod}
+        onDeletePeriod={promptDeletePeriod}
         periodBalanceStr={periodBalanceStr}
         onPeriodBalanceChange={(val) => setPeriodBalanceStr(formatNumberInput(val))}
         onPeriodBalanceBlur={handlePeriodBalanceBlur}
@@ -233,7 +265,7 @@ export function BukuKas({
             onSubmit={handleAddTransaction}
           />
 
-          {/* 6. Data Table Transaksi (Smooth Horizontal Scroll di Mobile) */}
+          {/* 6. Data Table Transaksi */}
           <KasDataTable
             data={tableData}
             totalDebet={currentSummary.totalDebet}
@@ -248,7 +280,7 @@ export function BukuKas({
               });
               setIsEditOpen(true);
             }}
-            onDelete={handleDeleteTransaction}
+            onDelete={promptDeleteTransaction}
           />
         </>
       )}
@@ -268,6 +300,16 @@ export function BukuKas({
         item={editItem}
         setItem={setEditItem}
         onSave={handleSaveEdit}
+        isPending={isPending}
+      />
+
+      {/* 9. Modal Dialog Konfirmasi Hapus (shadcn/ui) */}
+      <DialogConfirmDelete
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}
+        title={deleteDialog.title}
+        description={deleteDialog.description}
+        onConfirm={handleConfirmDelete}
         isPending={isPending}
       />
     </div>
