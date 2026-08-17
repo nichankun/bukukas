@@ -13,12 +13,14 @@ export default async function Page({
   const data = await getKasAppState(period);
 
   return (
-    <main className="min-h-screen bg-background py-3 sm:py-8 px-2 sm:px-4">
-      <BukuKas
-        initialPeriods={data.periods}
-        initialTransactions={data.transactions}
-        initialSelectedPeriod={data.selectedPeriod}
-      />
+    <main className="min-h-screen bg-background py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
+        <BukuKas
+          initialPeriods={data.periods}
+          initialTransactions={data.transactions}
+          initialSelectedPeriod={data.selectedPeriod}
+        />
+      </div>
     </main>
   );
 }

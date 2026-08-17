@@ -53,17 +53,9 @@ export function BukuKas({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Periode aktif ditentukan SERVER (lewat query param `?period=`,
-  // lihat page.tsx + getKasAppState). Ini penting: `initialTransactions`
-  // yang dikirim dari server sekarang hanya berisi transaksi milik
-  // periode ini saja (tidak lagi seluruh transaksi semua periode), jadi
-  // client tidak boleh lagi menentukan periode aktif sendiri secara
-  // lepas dari data yang benar-benar dimuat.
+  // Periode aktif ditentukan SERVER (lewat query param `?period=`)
   const selectedPeriod = initialSelectedPeriod ?? initialPeriods[0]?.periodKey ?? "";
 
-  // Pindah periode = navigasi (bukan sekadar ubah state lokal), supaya
-  // Next.js menjalankan ulang page.tsx dan mengambil transaksi periode
-  // yang baru dari DB.
   const setSelectedPeriod = (period: string) => {
     startTransition(() => {
       router.push(`/?period=${encodeURIComponent(period)}`);
@@ -74,10 +66,6 @@ export function BukuKas({
   const activePeriodObj = initialPeriods.find((p) => p.periodKey === selectedPeriod);
   const currentInitialBal = activePeriodObj ? activePeriodObj.initialBalance : 0;
 
-  // Input saldo awal: state lokal (supaya bisa diketik bebas sebelum blur),
-  // di-reset otomatis saat periode aktif berganti. Menggunakan pola resmi
-  // React "Adjusting state when a prop changes" — setState kondisional saat
-  // render, BUKAN di dalam useEffect — supaya tidak memicu render tambahan.
   const [prevSelectedPeriod, setPrevSelectedPeriod] = useState(selectedPeriod);
   const [periodBalanceStr, setPeriodBalanceStr] = useState<string>(
     formatNumberInput(currentInitialBal)
@@ -91,7 +79,7 @@ export function BukuKas({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItem, setEditItem] = useState<EditItemState | null>(null);
 
-  // State Modal Konfirmasi Hapus (shadcn/ui Alert Dialog)
+  // State Modal Konfirmasi Hapus
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     type: "period" | "transaction";
@@ -106,9 +94,6 @@ export function BukuKas({
     description: "",
   });
 
-  // `initialTransactions` sudah difilter server-side ke periode aktif
-  // saja (lihat getKasAppState di kas.ts) — tinggal urutkan sebagai
-  // jaga-jaga tambahan.
   const currentTransactions = [...initialTransactions].sort((a, b) => a.day - b.day);
 
   // Perhitungan Ringkasan Kas
@@ -130,9 +115,7 @@ export function BukuKas({
     saldoAkhir: saldoAkhirBulan,
   };
 
-  // Hitung running saldo baris transaksi. Menggunakan reduce dengan
-  // accumulator baru (bukan reassignment variabel dari outer scope)
-  // supaya kompatibel dengan React Compiler.
+  // Running saldo transaksi
   const tableData: TransactionRow[] = currentTransactions.reduce<TransactionRow[]>(
     (rows, tx) => {
       const prevSaldo = rows.length > 0 ? rows[rows.length - 1].runningSaldo : saldoAwalBulan;
@@ -177,7 +160,6 @@ export function BukuKas({
     });
   };
 
-  // Trigger Modal Hapus Transaksi (shadcn)
   const promptDeleteTransaction = (id: number) => {
     setDeleteDialog({
       open: true,
@@ -188,7 +170,6 @@ export function BukuKas({
     });
   };
 
-  // Trigger Modal Hapus Periode (shadcn)
   const promptDeletePeriod = (periodKeyToDelete: string) => {
     setDeleteDialog({
       open: true,
@@ -199,16 +180,11 @@ export function BukuKas({
     });
   };
 
-  // Eksekusi Hapus setelah konfirmasi di modal
   const handleConfirmDelete = () => {
     if (deleteDialog.type === "period" && deleteDialog.periodKey) {
       const wasActivePeriod = deleteDialog.periodKey === selectedPeriod;
       startTransition(async () => {
         await deletePeriodAction(deleteDialog.periodKey!);
-        // Kalau periode yang dihapus adalah periode yang sedang aktif
-        // dilihat, bersihkan `?period=` dari URL supaya server jatuh
-        // ke periode pertama yang tersisa (bukan menampilkan URL yang
-        // menunjuk ke periode yang sudah tidak ada).
         if (wasActivePeriod) {
           router.push("/");
         }
@@ -237,7 +213,8 @@ export function BukuKas({
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-3 sm:p-6 bg-card text-card-foreground rounded-xl sm:rounded-2xl shadow-sm border">
+    // ✅ Menggunakan container bersih (tanpa border card luar)
+    <div className="w-full space-y-6">
       {/* 1. Header & Tombol Export/Cetak */}
       <KasHeader
         onExportExcel={() => {
@@ -268,7 +245,7 @@ export function BukuKas({
 
       {/* 3. Empty State jika belum ada periode */}
       {initialPeriods.length === 0 ? (
-        <div className="text-center py-10 sm:py-16 px-4 border rounded-xl bg-muted/20 my-4 sm:my-6">
+        <div className="text-center py-10 sm:py-16 px-4 border rounded-xl bg-card shadow-sm my-4 sm:my-6">
           <CalendarPlus className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-3" />
           <h3 className="text-base sm:text-lg font-bold text-foreground mb-1">
             Belum Ada Periode Pembukuan
@@ -331,7 +308,7 @@ export function BukuKas({
         isPending={isPending}
       />
 
-      {/* 9. Modal Dialog Konfirmasi Hapus (shadcn/ui) */}
+      {/* 9. Modal Dialog Konfirmasi Hapus */}
       <DialogConfirmDelete
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}

@@ -13,16 +13,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Wallet,
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  Loader2,
-  ShieldCheck,
-} from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 import { loginAction } from "@/app/actions/auth";
 
 export default function LoginPage() {
@@ -49,99 +41,75 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen w-full flex items-center justify-center p-4 bg-muted/30">
-      {/* Lebar dibuat ramping max-w-[360px] agar proporsional */}
-      <Card className="w-full max-w-90 shadow-sm border rounded-xl bg-card">
-        {/* Header Card */}
-        <CardHeader className="space-y-1 pb-2">
-          <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Wallet className="w-4 h-4" />
-            </div>
-            <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border">
-              <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-              Sesi Aman
-            </div>
-          </div>
-          <CardTitle className="text-lg font-bold tracking-tight text-foreground pt-1.5">
+    <main className="flex min-h-screen w-full items-center justify-center p-6 bg-background">
+      <Card className="w-full max-w-sm border-none shadow-none sm:border sm:shadow-sm">
+        <CardHeader className="space-y-1.5 text-center">
+          <CardTitle className="text-xl font-semibold tracking-tight">
             Buku Kas Masuk
           </CardTitle>
-          <CardDescription className="text-xs text-muted-foreground">
+          <CardDescription>
             Masukkan kredensial admin untuk melanjutkan
           </CardDescription>
         </CardHeader>
 
-        {/* Form & Input */}
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-3 pt-1">
-            {/* Pesan Error */}
+          <CardContent className="space-y-4">
             {errorMessage && (
-              <div className="flex items-center gap-2 p-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
-            {/* Input Username */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">
-                Username
-              </label>
-              <div className="relative">
-                <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  name="username"
-                  type="text"
-                  placeholder="Masukkan username"
-                  required
-                  autoComplete="username"
-                  className="pl-8 h-8 text-xs bg-background"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                name="username"
+                type="text"
+                placeholder="Masukkan username"
+                required
+                autoComplete="username"
+              />
             </div>
 
-            {/* Input Password */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">
-                Password
-              </label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+              </div>
               <div className="relative">
-                <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
+                  id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Masukkan password"
                   required
                   autoComplete="current-password"
-                  className="pl-8 pr-9 h-8 text-xs bg-background"
+                  className="pr-10"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-0 top-0 h-8 w-8 text-muted-foreground hover:text-foreground"
+                  className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                  tabIndex={-1}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-3.5 w-3.5" />
+                    <EyeOff className="h-4 w-4" />
                   ) : (
-                    <Eye className="h-3.5 w-3.5" />
+                    <Eye className="h-4 w-4" />
                   )}
                 </Button>
               </div>
             </div>
           </CardContent>
 
-          {/* Footer Card */}
-          <CardFooter className="pt-2 flex flex-col gap-2">
-            <Button
-              type="submit"
-              disabled={isPending}
-              className="w-full h-8 font-medium text-xs shadow-sm transition-all"
-            >
+          <CardFooter className="flex flex-col gap-4">
+            <Button type="submit" disabled={isPending} className="w-full">
               {isPending ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Memverifikasi...
                 </>
               ) : (
@@ -149,7 +117,7 @@ export default function LoginPage() {
               )}
             </Button>
 
-            <p className="text-[10px] text-center text-muted-foreground">
+            <p className="text-center text-xs text-muted-foreground">
               Dilindungi enkripsi sesi server HTTP-Only
             </p>
           </CardFooter>
