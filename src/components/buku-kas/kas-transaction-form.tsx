@@ -4,14 +4,8 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { formatNumberInput, parseFormattedNumber } from "@/lib/kas-utils";
 import { KasDayPicker } from "./kas-day-picker";
 
@@ -81,18 +75,57 @@ export function KasTransactionForm({
         <label className="text-[11px] sm:text-xs font-semibold text-muted-foreground block mb-1">
           Jenis
         </label>
-        <Select
-          value={jenis}
-          onValueChange={(val: "debet" | "kredit") => setJenis(val)}
+        <div
+          role="radiogroup"
+          aria-label="Jenis transaksi"
+          className="grid grid-cols-2 gap-1.5 h-9"
         >
-          <SelectTrigger className="bg-background h-9 text-xs sm:text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="debet">Debet (Masuk)</SelectItem>
-            <SelectItem value="kredit">Kredit (Keluar)</SelectItem>
-          </SelectContent>
-        </Select>
+          <label className="relative flex">
+            <input
+              type="radio"
+              name="jenis"
+              value="debet"
+              checked={jenis === "debet"}
+              onChange={() => setJenis("debet")}
+              className="peer sr-only"
+            />
+            <span
+              className={cn(
+                "flex w-full items-center justify-center gap-1.5 rounded-lg border text-xs sm:text-sm font-medium cursor-pointer transition-colors select-none",
+                "peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50",
+                jenis === "debet"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <ArrowDownToLine className="size-3.5" />
+              Debet
+            </span>
+          </label>
+
+          <label className="relative flex">
+            <input
+              type="radio"
+              name="jenis"
+              value="kredit"
+              checked={jenis === "kredit"}
+              onChange={() => setJenis("kredit")}
+              className="peer sr-only"
+            />
+            <span
+              className={cn(
+                "flex w-full items-center justify-center gap-1.5 rounded-lg border text-xs sm:text-sm font-medium cursor-pointer transition-colors select-none",
+                "peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50",
+                jenis === "kredit"
+                  ? "border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <ArrowUpFromLine className="size-3.5" />
+              Kredit
+            </span>
+          </label>
+        </div>
       </div>
 
       <div className="col-span-2 md:col-span-1">

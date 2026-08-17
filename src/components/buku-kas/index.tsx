@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { formatNumberInput, parseFormattedNumber, formatMonthName } from "@/lib/kas-utils";
 import { exportKasToExcel } from "@/lib/export-excel";
 import {
@@ -41,26 +42,33 @@ export interface TransactionItem {
 interface BukuKasProps {
   initialPeriods: PeriodItem[];
   initialTransactions: TransactionItem[];
+  initialSelectedPeriod: string | null;
 }
 
 export function BukuKas({
   initialPeriods,
   initialTransactions,
+  initialSelectedPeriod,
 }: BukuKasProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // State Periode Terpilih (override manual oleh user via dropdown)
-  const [selectedPeriodOverride, setSelectedPeriodOverride] = useState<string | null>(null);
+  // Periode aktif ditentukan SERVER (lewat query param `?period=`,
+  // lihat page.tsx + getKasAppState). Ini penting: `initialTransactions`
+  // yang dikirim dari server sekarang hanya berisi transaksi milik
+  // periode ini saja (tidak lagi seluruh transaksi semua periode), jadi
+  // client tidak boleh lagi menentukan periode aktif sendiri secara
+  // lepas dari data yang benar-benar dimuat.
+  const selectedPeriod = initialSelectedPeriod ?? initialPeriods[0]?.periodKey ?? "";
 
-  // Periode aktif = override user, jika masih ada di daftar; jika tidak
-  // (mis. baru dihapus), otomatis jatuh ke periode pertama yang tersedia.
-  // Dihitung langsung saat render — tidak perlu effect untuk "reset".
-  const selectedPeriod =
-    selectedPeriodOverride && initialPeriods.some((p) => p.periodKey === selectedPeriodOverride)
-      ? selectedPeriodOverride
-      : initialPeriods[0]?.periodKey || "";
-
-  const setSelectedPeriod = (period: string) => setSelectedPeriodOverride(period);
+  // Pindah periode = navigasi (bukan sekadar ubah state lokal), supaya
+  // Next.js menjalankan ulang page.tsx dan mengambil transaksi periode
+  // yang baru dari DB.
+  const setSelectedPeriod = (period: string) => {
+    startTransition(() => {
+      router.push(`/?period=${encodeURIComponent(period)}`);
+    });
+  };
 
   // Ambil saldo awal periode aktif
   const activePeriodObj = initialPeriods.find((p) => p.periodKey === selectedPeriod);
@@ -98,10 +106,10 @@ export function BukuKas({
     description: "",
   });
 
-  // Transaksi di periode terpilih
-  const currentTransactions = initialTransactions
-    .filter((t) => t.periodKey === selectedPeriod)
-    .sort((a, b) => a.day - b.day);
+  // `initialTransactions` sudah difilter server-side ke periode aktif
+  // saja (lihat getKasAppState di kas.ts) — tinggal urutkan sebagai
+  // jaga-jaga tambahan.
+  const currentTransactions = [...initialTransactions].sort((a, b) => a.day - b.day);
 
   // Perhitungan Ringkasan Kas
   const totalDebet = currentTransactions
@@ -194,8 +202,16 @@ export function BukuKas({
   // Eksekusi Hapus setelah konfirmasi di modal
   const handleConfirmDelete = () => {
     if (deleteDialog.type === "period" && deleteDialog.periodKey) {
+      const wasActivePeriod = deleteDialog.periodKey === selectedPeriod;
       startTransition(async () => {
         await deletePeriodAction(deleteDialog.periodKey!);
+        // Kalau periode yang dihapus adalah periode yang sedang aktif
+        // dilihat, bersihkan `?period=` dari URL supaya server jatuh
+        // ke periode pertama yang tersisa (bukan menampilkan URL yang
+        // menunjuk ke periode yang sudah tidak ada).
+        if (wasActivePeriod) {
+          router.push("/");
+        }
       });
     } else if (deleteDialog.type === "transaction" && deleteDialog.id) {
       startTransition(async () => {
@@ -207,7 +223,7 @@ export function BukuKas({
   const handleAddPeriod = (newPeriod: string) => {
     startTransition(async () => {
       await createPeriod(newPeriod, 0);
-      setSelectedPeriod(newPeriod);
+      router.push(`/?period=${encodeURIComponent(newPeriod)}`);
       setIsPeriodOpen(false);
     });
   };

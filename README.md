@@ -6,7 +6,16 @@ Aplikasi pembukuan kas sederhana berbasis Next.js — mencatat transaksi debet/k
 - shadcn/ui (Tailwind CSS v4, Radix UI, Lucide icons)
 - TanStack Table v9
 ## Menjalankan secara lokal
-1. Salin `.env.example` menjadi `.env` dan isi semua variabel (lihat komentar di masing-masing baris).
+1. Buat file `.env` di root project, isi variabel berikut:
+   ```bash
+   DATABASE_URL=postgres://user:password@host:5432/nama_db
+   AUTH_SECRET=isi_dengan_nilai_acak_kuat   # contoh: openssl rand -base64 32
+   ADMIN_USERNAME=username_admin
+   ADMIN_PASSWORD=password_admin
+   # Opsional — set "true" HANYA kalau app ini di belakang reverse proxy
+   # tepercaya (Vercel/Nginx/Cloudflare) yang men-strip header client:
+   # TRUST_PROXY_HEADERS=true
+   ```
 2. Install dependencies:
    ```bash
    pnpm install

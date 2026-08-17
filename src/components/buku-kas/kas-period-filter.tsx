@@ -62,14 +62,23 @@ export function KasPeriodFilter({
               <SelectTrigger className="flex-1 sm:w-47.5 bg-background h-9 text-xs sm:text-sm font-medium">
                 <SelectValue placeholder="Pilih Periode" />
               </SelectTrigger>
-              <SelectContent className="max-h-75">
+              <SelectContent
+                position="popper"
+                align="start"
+                sideOffset={6}
+                className="max-h-75 min-w-56"
+              >
                 {Object.entries(periodsByYear).map(([year, pList]) => (
                   <SelectGroup key={year}>
-                    <SelectLabel className="px-2 py-1 text-[11px] font-bold text-primary bg-muted/60 rounded my-0.5">
+                    <SelectLabel className="sticky top-0 z-10 -mx-1 px-3 py-1.5 text-[11px] font-bold text-primary bg-popover/95 backdrop-blur-sm border-b border-border/50">
                       Tahun {year}
                     </SelectLabel>
                     {pList.map((p) => (
-                      <SelectItem key={p} value={p} className="pl-4 text-xs sm:text-sm cursor-pointer">
+                      <SelectItem
+                        key={p}
+                        value={p}
+                        className="pl-4 py-1.5 text-xs sm:text-sm cursor-pointer data-[state=checked]:font-semibold data-[state=checked]:text-primary"
+                      >
                         {formatMonthName(p)}
                       </SelectItem>
                     ))}

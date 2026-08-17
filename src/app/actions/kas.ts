@@ -39,31 +39,61 @@ function assertValidDayForPeriod(periodKey: string, day: number) {
   }
 }
 
-export async function getKasAppState() {
+// Ambil transaksi milik SATU periode saja, terurut per tanggal.
+// Dipisah jadi helper karena dipakai baik dari getKasAppState() (initial
+// load) maupun bisa dipanggil ulang kalau nanti dibutuhkan revalidasi
+// per-periode.
+async function fetchTransactionsForPeriod(periodKey: string) {
+  const rows = await db
+    .select()
+    .from(transactionsTable)
+    .where(eq(transactionsTable.periodKey, periodKey))
+    .orderBy(asc(transactionsTable.day));
+
+  return rows.map((t) => ({
+    ...t,
+    amount: parseFloat(t.amount) || 0,
+  }));
+}
+
+export async function getKasAppState(periodKey?: string) {
   await requireSession();
 
-  // 1. Ambil semua periode (Murni dari database tanpa auto-seed)
+  // 1. Ambil daftar periode. Ini tetap diambil semua sekaligus — tabel
+  //    ini hanya berisi satu baris per bulan pembukuan, jadi ukurannya
+  //    kecil dan wajar untuk mengisi dropdown filter periode.
   const periodsData = await db
     .select()
     .from(periodsTable)
     .orderBy(asc(periodsTable.periodKey));
 
-  // 2. Ambil seluruh transaksi
-  const allTransactions = await db
-    .select()
-    .from(transactionsTable)
-    .orderBy(asc(transactionsTable.day));
+  const periods = periodsData.map((p) => ({
+    periodKey: p.periodKey,
+    initialBalance: parseFloat(p.initialBalance) || 0,
+  }));
 
-  return {
-    periods: periodsData.map((p) => ({
-      periodKey: p.periodKey,
-      initialBalance: parseFloat(p.initialBalance) || 0,
-    })),
-    transactions: allTransactions.map((t) => ({
-      ...t,
-      amount: parseFloat(t.amount) || 0,
-    })),
-  };
+  // 2. Transaksi TIDAK diambil untuk semua periode sekaligus — tabel ini
+  //    yang berpotensi membengkak tanpa batas seiring waktu. Hanya
+  //    transaksi milik SATU periode aktif yang diambil (lihat page.tsx:
+  //    periode aktif ditentukan lewat query param `?period=`, dikirim
+  //    lagi ke sini, bukan di-filter dari dataset penuh di client).
+  //
+  //    Ini aman: tiap periode independen secara finansial (initialBalance
+  //    tersimpan per periode, saldo akhir dihitung hanya dari transaksi
+  //    periode itu sendiri — lihat index.tsx), jadi tidak ada akumulasi
+  //    lintas periode yang bisa jadi salah kalau periode lain tidak ikut
+  //    dimuat.
+  const parsedPeriodKey = periodKey ? periodKeySchema.safeParse(periodKey).data : undefined;
+  const activePeriodKey =
+    (parsedPeriodKey && periods.some((p) => p.periodKey === parsedPeriodKey)
+      ? parsedPeriodKey
+      : periods[0]?.periodKey) ?? null;
+
+  const transactions = activePeriodKey
+    ? await fetchTransactionsForPeriod(activePeriodKey)
+    : [];
+
+  return { periods, transactions, selectedPeriod: activePeriodKey };
 }
 
 // Tambah Periode Baru
